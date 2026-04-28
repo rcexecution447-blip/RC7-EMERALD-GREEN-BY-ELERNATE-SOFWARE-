@@ -1,0 +1,425 @@
+-- Services
+local TweenService = game:GetService("TweenService")
+local UserInputService = game:GetService("UserInputService")
+local Players = game:GetService("Players")
+local HttpService = game:GetService("HttpService")
+local RunService = game:GetService("RunService")
+
+-- --- SETUP ---
+local GUI_NAME = "RC7_Ultimate_Leaf_Functional_Hub"
+local LP = Players.LocalPlayer
+local PlayerGui = LP:WaitForChild("PlayerGui")
+local IsAttached = false 
+
+if PlayerGui:FindFirstChild(GUI_NAME) then
+    PlayerGui[GUI_NAME]:Destroy()
+end
+
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = GUI_NAME
+ScreenGui.Parent = PlayerGui
+ScreenGui.ResetOnSpawn = false
+
+-- --- LEAF/METAL EFFECT FUNCTION ---
+local function ApplyMetal(parent, rotation)
+    local gradient = Instance.new("UIGradient")
+    gradient.Color = ColorSequence.new({
+        ColorSequenceKeypoint.new(0, Color3.fromRGB(34, 139, 34)), 
+        ColorSequenceKeypoint.new(0.3, Color3.fromRGB(144, 238, 144)), 
+        ColorSequenceKeypoint.new(0.7, Color3.fromRGB(50, 205, 50)), 
+        ColorSequenceKeypoint.new(1, Color3.fromRGB(0, 100, 0)) 
+    })
+    gradient.Rotation = rotation or 45
+    gradient.Parent = parent
+end
+
+-- --- DRAGGABLE FUNCTION ---
+local function MakeDraggable(frame, dragHandle)
+    local dragging, dragInput, dragStart, startPos
+    dragHandle.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            dragging = true
+            dragStart = input.Position
+            startPos = frame.Position
+        end
+    end)
+    UserInputService.InputChanged:Connect(function(input)
+        if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+            local delta = input.Position - dragStart
+            frame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+        end
+    end)
+    UserInputService.InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then dragging = false end
+    end)
+end
+
+-- ==========================================
+-- MAIN FRAME
+-- ==========================================
+local MainFrame = Instance.new("Frame")
+MainFrame.Parent = ScreenGui
+MainFrame.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+MainFrame.Position = UDim2.new(0.5, -210, 0.5, -180)
+MainFrame.Size = UDim2.new(0, 420, 0, 360)
+MainFrame.BorderSizePixel = 0
+MainFrame.Visible = false
+Instance.new("UICorner", MainFrame).CornerRadius = UDim.new(0, 10)
+ApplyMetal(MainFrame, 90)
+
+-- ==========================================
+-- SCRIPT HUB MENU
+-- ==========================================
+local ScriptHub = Instance.new("Frame")
+ScriptHub.Name = "ScriptHub"
+ScriptHub.Parent = ScreenGui
+ScriptHub.BackgroundColor3 = Color3.fromRGB(20, 40, 20)
+ScriptHub.Position = UDim2.new(0.5, 220, 0.5, -150)
+ScriptHub.Size = UDim2.new(0, 280, 0, 350)
+ScriptHub.Visible = false
+Instance.new("UICorner", ScriptHub)
+ApplyMetal(ScriptHub, 45)
+MakeDraggable(ScriptHub, ScriptHub)
+
+local HubTitle = Instance.new("TextLabel")
+HubTitle.Parent = ScriptHub
+HubTitle.Size = UDim2.new(1, 0, 0, 40)
+HubTitle.Text = "RC7 SCRIPT SEARCH"
+HubTitle.Font = Enum.Font.GothamBlack
+HubTitle.TextColor3 = Color3.new(1,1,1)
+HubTitle.BackgroundTransparency = 1
+HubTitle.TextSize = 16
+
+local SearchBar = Instance.new("TextBox")
+SearchBar.Parent = ScriptHub
+SearchBar.Size = UDim2.new(0.9, 0, 0, 35)
+SearchBar.Position = UDim2.new(0.05, 0, 0.12, 0)
+SearchBar.BackgroundColor3 = Color3.fromRGB(10, 30, 10)
+SearchBar.PlaceholderText = "Type & Press Enter..."
+SearchBar.Text = ""
+SearchBar.TextColor3 = Color3.new(1,1,1)
+Instance.new("UICorner", SearchBar)
+
+local ResultsFrame = Instance.new("ScrollingFrame")
+ResultsFrame.Parent = ScriptHub
+ResultsFrame.Position = UDim2.new(0.05, 0, 0.25, 0)
+ResultsFrame.Size = UDim2.new(0.9, 0, 0.7, 0)
+ResultsFrame.BackgroundTransparency = 1
+ResultsFrame.CanvasSize = UDim2.new(0, 0, 0, 0)
+ResultsFrame.ScrollBarThickness = 4
+local ResultsLayout = Instance.new("UIListLayout", ResultsFrame)
+ResultsLayout.Padding = UDim.new(0, 5)
+
+SearchBar.FocusLost:Connect(function(enter)
+    if not enter or SearchBar.Text == "" then return end
+    for _, v in pairs(ResultsFrame:GetChildren()) do if v:IsA("TextButton") then v:Destroy() end end
+    local query = SearchBar.Text:gsub(" ", "%%20")
+    local url = "https://scriptblox.com/api/script/search?q="..query.."&max=10"
+    pcall(function()
+        local response = game:HttpGet(url)
+        local data = HttpService:JSONDecode(response)
+        for _, scriptData in pairs(data.result.scripts) do
+            local btn = Instance.new("TextButton")
+            btn.Parent = ResultsFrame
+            btn.Size = UDim2.new(1, -10, 0, 40)
+            btn.BackgroundColor3 = Color3.fromRGB(30, 60, 30)
+            btn.Text = scriptData.title
+            btn.TextColor3 = Color3.new(1,1,1)
+            btn.Font = Enum.Font.Gotham
+            btn.TextSize = 12
+            Instance.new("UICorner", btn)
+            btn.MouseButton1Click:Connect(function()
+                if not IsAttached then return end
+                if scriptData.script then loadstring(scriptData.script)() end
+            end)
+        end
+        ResultsFrame.CanvasSize = UDim2.new(0, 0, 0, ResultsLayout.AbsoluteContentSize.Y)
+    end)
+end)
+
+-- ==========================================
+-- TOP BAR (HEADER)
+-- ==========================================
+local TopBar = Instance.new("Frame")
+TopBar.Parent = MainFrame
+TopBar.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+TopBar.BackgroundTransparency = 0.85
+TopBar.Size = UDim2.new(1, 0, 0, 45)
+TopBar.BorderSizePixel = 0
+Instance.new("UICorner", TopBar).CornerRadius = UDim.new(0, 10)
+MakeDraggable(MainFrame, TopBar)
+
+local GlassStroke = Instance.new("UIStroke")
+GlassStroke.Color = Color3.new(1, 1, 1)
+GlassStroke.Transparency = 0.6
+GlassStroke.Parent = TopBar
+
+local LogoBox = Instance.new("Frame")
+LogoBox.Parent = TopBar
+LogoBox.BackgroundColor3 = Color3.fromRGB(200, 255, 200)
+LogoBox.Position = UDim2.new(0, 10, 0, 5)
+LogoBox.Size = UDim2.new(0, 45, 0, 35)
+Instance.new("UICorner", LogoBox).CornerRadius = UDim.new(0, 6)
+ApplyMetal(LogoBox) 
+
+local LogoText = Instance.new("TextLabel")
+LogoText.Parent = LogoBox
+LogoText.Size = UDim2.new(1, 0, 1, 0)
+LogoText.BackgroundTransparency = 1
+LogoText.Text = "RC7"
+LogoText.Font = Enum.Font.GothamBlack
+LogoText.TextColor3 = Color3.fromRGB(0, 50, 0)
+LogoText.TextSize = 16
+
+local TopMenu = Instance.new("Frame")
+TopMenu.Parent = TopBar
+TopMenu.BackgroundTransparency = 1
+TopMenu.Position = UDim2.new(0, 85, 0, 0)
+TopMenu.Size = UDim2.new(0, 260, 1, 0)
+local TopLayout = Instance.new("UIListLayout", TopMenu)
+TopLayout.FillDirection = Enum.FillDirection.Horizontal
+TopLayout.VerticalAlignment = Enum.VerticalAlignment.Center
+TopLayout.Padding = UDim.new(0, 8)
+
+local LogLabel 
+
+local function CreateTopBtn(text, msg)
+    local b = Instance.new("TextButton")
+    b.Parent = TopMenu
+    b.Size = UDim2.new(0, 75, 0, 28)
+    b.BackgroundColor3 = Color3.fromRGB(150, 200, 150)
+    b.Text = text
+    b.Font = Enum.Font.GothamBold
+    b.TextSize = 11
+    Instance.new("UICorner", b).CornerRadius = UDim.new(0, 6)
+    ApplyMetal(b)
+    b.MouseButton1Click:Connect(function() 
+        LogLabel.Text = "Status: "..msg 
+    end)
+end
+
+CreateTopBtn("Commands", "Commands Tab Selected")
+CreateTopBtn("Settings", "Settings Tab Selected")
+CreateTopBtn("Help", "Help Menu Selected")
+
+-- ==========================================
+-- SIDEBAR (LEFT) - SCROLLABLE & UPDATED ICONS
+-- ==========================================
+local Sidebar = Instance.new("Frame")
+Sidebar.Parent = MainFrame
+Sidebar.BackgroundColor3 = Color3.fromRGB(30, 50, 30)
+Sidebar.Position = UDim2.new(0, 0, 0, 45)
+Sidebar.Size = UDim2.new(0, 80, 1, -45)
+Instance.new("UICorner", Sidebar).CornerRadius = UDim.new(0, 10)
+ApplyMetal(Sidebar, 0)
+
+local FullLogo = Instance.new("TextLabel")
+FullLogo.Parent = Sidebar
+FullLogo.BackgroundTransparency = 1
+FullLogo.Position = UDim2.new(0, 0, 0, 5)
+FullLogo.Size = UDim2.new(1, 0, 0, 90)
+FullLogo.Font = Enum.Font.GothamBlack
+FullLogo.Text = "R\nC\n7"
+FullLogo.TextColor3 = Color3.fromRGB(255, 215, 0)
+FullLogo.TextSize = 32
+FullLogo.LineHeight = 0.75 
+local GoldStroke = Instance.new("UIStroke", FullLogo)
+GoldStroke.Thickness = 2
+GoldStroke.Color = Color3.fromRGB(139, 101, 8)
+
+-- Mengubah Container menjadi ScrollingFrame agar icon bisa digeser
+local IconContainer = Instance.new("ScrollingFrame")
+IconContainer.Parent = Sidebar
+IconContainer.BackgroundTransparency = 1
+IconContainer.Position = UDim2.new(0, 0, 0, 100)
+IconContainer.Size = UDim2.new(1, 0, 1, -110)
+IconContainer.ScrollBarThickness = 2
+IconContainer.ScrollBarImageColor3 = Color3.fromRGB(144, 238, 144)
+IconContainer.CanvasSize = UDim2.new(0, 0, 0, 0)
+IconContainer.ClipsDescendants = true 
+
+local IconLayout = Instance.new("UIListLayout", IconContainer)
+IconLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+IconLayout.Padding = UDim.new(0, 12)
+
+local function CreateIconBox(id, cb)
+    local box = Instance.new("Frame")
+    box.Parent = IconContainer
+    box.Size = UDim2.new(0, 50, 0, 50)
+    box.BackgroundColor3 = Color3.fromRGB(150, 200, 150)
+    
+    local corner = Instance.new("UICorner", box)
+    corner.CornerRadius = UDim.new(0, 12)
+    
+    local boxStroke = Instance.new("UIStroke", box)
+    boxStroke.Color = Color3.fromRGB(255, 255, 255)
+    boxStroke.Transparency = 0.5
+    boxStroke.Thickness = 1.5
+    
+    ApplyMetal(box)
+    
+    local b = Instance.new("ImageButton")
+    b.Parent = box
+    b.Size = UDim2.new(0.65, 0, 0.65, 0)
+    b.Position = UDim2.new(0.5, 0, 0.5, 0)
+    b.AnchorPoint = Vector2.new(0.5, 0.5)
+    b.BackgroundTransparency = 1
+    b.Image = "rbxassetid://"..id
+    
+    b.MouseEnter:Connect(function()
+        TweenService:Create(box, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(200, 255, 200)}):Play()
+    end)
+    b.MouseLeave:Connect(function()
+        TweenService:Create(box, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(150, 200, 150)}):Play()
+    end)
+    
+    b.MouseButton1Click:Connect(cb)
+    IconContainer.CanvasSize = UDim2.new(0, 0, 0, IconLayout.AbsoluteContentSize.Y + 20)
+end
+
+-- ICON 1-4 (EXISTING)
+CreateIconBox("75012687595589", function() ScriptHub.Visible = not ScriptHub.Visible end)
+CreateIconBox("107012949786412", function() if IsAttached then loadstring(game:HttpGet("https://idx.lol/latest.lua"))() end end)
+CreateIconBox("72497048403315", function() if IsAttached then loadstring(game:HttpGet('https://bitbucket.org/projects_early26/new/raw/0cd464afb03269ef1134a30fc8c407162e88dcac/v1.2.5.lua'))() end end)
+CreateIconBox("114739408733721", function() if IsAttached then loadstring(game:HttpGet("https://scriptblox.com/raw/Universal-Script-RoXploit-by-KrystalTeam-9328"))() end end)
+
+-- ICON 5 (SNAKE HEAD ANIMATION)
+CreateIconBox("132486720407059", function()
+    if not IsAttached then return end
+    local character = LP.Character or LP.CharacterAdded:Wait()
+    local torso = character:FindFirstChild("Torso")
+    local neck = torso and torso:FindFirstChild("Neck")
+    if neck then
+        local baseC0 = neck.C0
+        local amplitude = 0.6
+        local speed = 4
+        local t_val = 0
+        RunService.RenderStepped:Connect(function(dt)
+            t_val += dt
+            local xOffset = math.sin(t_val * speed) * amplitude
+            neck.C0 = baseC0 * CFrame.new(xOffset, 0, 0)
+        end)
+        LogLabel.Text = "Status: Snake Animation Active"
+    end
+end)
+
+-- ICON 6 (EAGLE GUI V2)
+CreateIconBox("83343625526225", function()
+    if IsAttached then 
+        loadstring(game:HttpGet("https://raw.githubusercontent.com/rcexecution447-blip/EAGLE-GUI-V2-ELERNATE-CODE/refs/heads/main/EAGLE%20GUI%20V2.txt"))()
+        LogLabel.Text = "Status: Eagle GUI Executed"
+    end
+end)
+
+-- ==========================================
+-- CONTENT AREA / EDITOR
+-- ==========================================
+local Content = Instance.new("Frame")
+Content.Parent = MainFrame
+Content.BackgroundTransparency = 1
+Content.Position = UDim2.new(0, 80, 0, 45)
+Content.Size = UDim2.new(1, -80, 1, -45)
+
+local Editor = Instance.new("TextBox")
+Editor.Parent = Content
+Editor.BackgroundColor3 = Color3.fromRGB(20, 35, 20)
+Editor.Position = UDim2.new(0, 10, 0, 10)
+Editor.Size = UDim2.new(1, -20, 0, 180)
+Editor.TextColor3 = Color3.new(1,1,1)
+Editor.Font = Enum.Font.Code
+Editor.Text = ""
+Editor.PlaceholderText = "-- RC7 Leaf Executor\n-- Use Attach Button first!"
+Editor.MultiLine = true
+Editor.ClearTextOnFocus = false
+Editor.TextYAlignment = Enum.TextYAlignment.Top
+Editor.TextXAlignment = Enum.TextXAlignment.Left
+Instance.new("UICorner", Editor)
+
+local BtnBar = Instance.new("Frame")
+BtnBar.Parent = Content
+BtnBar.BackgroundTransparency = 1
+BtnBar.Position = UDim2.new(0, 10, 0, 200)
+BtnBar.Size = UDim2.new(1, -20, 0, 35)
+Instance.new("UIListLayout", BtnBar).FillDirection = Enum.FillDirection.Horizontal
+BtnBar.UIListLayout.Padding = UDim.new(0, 5)
+
+local function ActionBtn(t)
+    local b = Instance.new("TextButton")
+    b.Parent = BtnBar
+    b.Size = UDim2.new(0.32, 0, 1, 0)
+    b.BackgroundColor3 = Color3.fromRGB(150, 255, 150)
+    b.Text = t
+    b.Font = Enum.Font.GothamBold
+    b.TextColor3 = Color3.new(0,0,0)
+    Instance.new("UICorner", b)
+    ApplyMetal(b)
+    return b
+end
+
+local Exec = ActionBtn("Execute")
+local Clear = ActionBtn("Clear")
+local Attach = ActionBtn("Attach")
+
+local LogBox = Instance.new("Frame")
+LogBox.Parent = Content
+LogBox.BackgroundColor3 = Color3.fromRGB(10, 20, 10)
+LogBox.Position = UDim2.new(0, 10, 0, 245)
+LogBox.Size = UDim2.new(1, -20, 0, 45)
+Instance.new("UICorner", LogBox)
+
+LogLabel = Instance.new("TextLabel")
+LogLabel.Parent = LogBox
+LogLabel.Size = UDim2.new(1, -20, 1, 0)
+LogLabel.Position = UDim2.new(0, 10, 0, 0)
+LogLabel.BackgroundTransparency = 1
+LogLabel.Font = Enum.Font.GothamBold
+LogLabel.Text = "Status: Not Attached"
+LogLabel.TextColor3 = Color3.new(1,1,1)
+LogLabel.TextXAlignment = Enum.TextXAlignment.Left
+
+-- --- BUTTON LOGIC ---
+Attach.MouseButton1Click:Connect(function()
+    IsAttached = true
+    LogLabel.Text = "Status: Successfully Attached!"
+    LogLabel.TextColor3 = Color3.fromRGB(0, 255, 0)
+    Attach.Text = "Attached"
+end)
+
+Exec.MouseButton1Click:Connect(function()
+    if not IsAttached then
+        LogLabel.Text = "Status: Failed - Please Attach First!"
+        LogLabel.TextColor3 = Color3.fromRGB(255, 50, 50)
+        return
+    end
+    local s, e = pcall(function() loadstring(Editor.Text)() end)
+    LogLabel.Text = s and "Status: Execution Success" or "Status: Syntax Error"
+    LogLabel.TextColor3 = s and Color3.new(1,1,1) or Color3.fromRGB(255, 100, 100)
+end)
+
+Clear.MouseButton1Click:Connect(function() Editor.Text = "" end)
+
+-- ==========================================
+-- TOGGLE ICON
+-- ==========================================
+local Toggle = Instance.new("TextButton")
+Toggle.Name = "RC7_LogoToggle"
+Toggle.Parent = ScreenGui
+Toggle.Size = UDim2.new(0, 80, 0, 80)
+Toggle.Position = UDim2.new(0, 15, 1, -95) 
+Toggle.BackgroundTransparency = 1 
+Toggle.Text = "<font face='Highway'>R</font><font size='25'><sup>C7</sup></font>" 
+Toggle.RichText = true
+Toggle.TextColor3 = Color3.new(1, 1, 1)
+Toggle.TextSize = 65 
+
+ApplyMetal(Toggle, 45)
+
+local Stroke = Instance.new("UIStroke")
+Stroke.Thickness = 3
+Stroke.Color = Color3.fromRGB(0, 60, 0)
+Stroke.Transparency = 0.2
+Stroke.Parent = Toggle
+
+Toggle.MouseButton1Click:Connect(function() 
+    MainFrame.Visible = not MainFrame.Visible 
+end)
